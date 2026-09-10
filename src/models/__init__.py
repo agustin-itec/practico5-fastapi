@@ -1,0 +1,1 @@
+from .articulos_models import Articulo
