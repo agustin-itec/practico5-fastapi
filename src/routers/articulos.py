@@ -1,9 +1,8 @@
 from typing import Annotated
 from fastapi import HTTPException, Path, Query, APIRouter, Depends
-from schemas.articulos import ArticuloSchema, ArticuloUpdateSchema
 from database import get_db
-from sqlalchemy.orm import Session
-from models.articulos_models import Articulo
+from models.articulos_models import Articulo, ArticuloBase, ArticuloCreate, ArticuloPublic, Proveedor, ProveedorBase, ProveedorPublic, ProveedorCreate, ArticuloNested
+from sqlmodel import Session, select
 
 articulos_routers = APIRouter()
 
@@ -24,17 +23,17 @@ DICT_NOT_FOUND: dict = {
 # METODOS GET
 ##########################
 
-@articulos_routers.get("/", response_model=list[ArticuloSchema])
+@articulos_routers.get("/", response_model=list[ArticuloPublic])
 async def get_articulos( db: Session = Depends(get_db)):
-    return db.query(Articulo).all()
+    return db.exec(select(Articulo)).all()
 
 @articulos_routers.get(
         "/{id}",
         responses=DICT_NOT_FOUND,
-        response_model=ArticuloSchema
+        response_model=ArticuloNested
         ) 
 async def get_articulos_id(id: Annotated[int, Path(gt=0, description="El ID debe ser mayor a cero")], db: Session = Depends(get_db)):
-    articulo_obtenido = db.query(Articulo).filter(Articulo.id == id).first()
+    articulo_obtenido = db.get(Articulo, id) # envio tabla e ID
     if not articulo_obtenido:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return articulo_obtenido
@@ -47,14 +46,10 @@ async def get_articulos_id(id: Annotated[int, Path(gt=0, description="El ID debe
 
 @articulos_routers.post(
         "/",
-        response_model=ArticuloSchema)
-async def agregar_articulo(nuevo_articulo:ArticuloUpdateSchema, db: Session = Depends(get_db)) -> ArticuloSchema:
-    articulo_db = Articulo(
-        nombre = nuevo_articulo.nombre,
-        precio = nuevo_articulo.precio,
-        activo = nuevo_articulo.activo,
-        imagen = nuevo_articulo.imagen,
-    )
+        response_model=ArticuloNested)
+async def agregar_articulo(nuevo_articulo:ArticuloCreate, db: Session = Depends(get_db)):
+
+    articulo_db = Articulo.model_validate(nuevo_articulo)
 
     db.add(articulo_db)
     db.commit()
@@ -66,14 +61,14 @@ async def agregar_articulo(nuevo_articulo:ArticuloUpdateSchema, db: Session = De
 # METODOS PUT
 ##########################
 
-@articulos_routers.put("/{id}",responses=DICT_NOT_FOUND, response_model=ArticuloSchema)
+@articulos_routers.put("/{id}",responses=DICT_NOT_FOUND, response_model=ArticuloPublic)
 async def actualizar_articulo(
     id:Annotated[int,Path(gt=0)],
-    articulo_editar:ArticuloUpdateSchema,
+    articulo_editar:ArticuloCreate,
     db: Session = Depends(get_db)
     ): 
 
-    articulo_obtenido = db.query(Articulo).filter(Articulo.id == id).first()
+    articulo_obtenido = db.get(Articulo, id)
 
     if not articulo_obtenido:
         raise HTTPException(status_code=404, detail="Articulo no encontrado")
@@ -95,25 +90,40 @@ async def actualizar_articulo(
 
 @articulos_routers.delete(
     "/{id}",
-    responses = DICT_NOT_FOUND,
-    response_model = ArticuloSchema,
+    responses=DICT_NOT_FOUND,
+    response_model=ArticuloPublic,
 )
 async def eliminar_articulo(
-    id:Annotated[int,Path(gt=0)],
-    logico:Annotated[bool,Query(description="Indica si se debe eliminar un artículo o no")] = True,
+    id: Annotated[int, Path(gt=0)],
+    logico: Annotated[bool, Query(description="Indica si se debe eliminar un artículo o no")] = True,
     db: Session = Depends(get_db)
 ): 
-    # articulo_obtenido = db.query(Articulo).filter(Articulo.id == id).first()
     articulo_obtenido = db.get(Articulo, id)
     if articulo_obtenido is None:
         raise HTTPException(status_code=404, detail="Articulo no encontrado")
+    
     if logico:
         articulo_obtenido.activo = False
         db.commit()
         db.refresh(articulo_obtenido)
+        return articulo_obtenido
     else:
         db.delete(articulo_obtenido)
         db.commit()
+        return articulo_obtenido
 
-    return articulo_obtenido
-    
+
+
+
+
+
+@articulos_routers.post("/proveedor", tags=["Proveedor"], response_model=ProveedorPublic)
+async def add_proveedor(proveedor:ProveedorCreate, db: Session = Depends(get_db)):
+
+    nuevo_proveedor = Proveedor.model_validate(proveedor)
+
+    db.add(nuevo_proveedor)
+    db.commit()
+    db.refresh(nuevo_proveedor)
+
+    return nuevo_proveedor

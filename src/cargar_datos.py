@@ -1,23 +1,30 @@
-import sqlite3
+from sqlmodel import Session, SQLModel, select
+from database import engine
+from models.articulos_models import Articulo
 
-# Conectar a la base de datos
-conn = sqlite3.connect('db_lenera.db')
-cursor = conn.cursor()
+def poblar_base_datos():
+    # Asegura que las tablas existan antes de insertar
+    SQLModel.metadata.create_all(engine)
 
-# Insertar el primer registro
-cursor.execute("""
-    INSERT INTO articulo (nombre, precio, activo, imagen) 
-    VALUES ('Leña (bolsa 6kg)', 2600.0, 1, 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS7svZcUJPdEdxpolnznz3owj-Ca1GOYQ6oSprBcmT76i0zLUp1')
-""")
+    articulos_semilla = [
+        Articulo(nombre="Leña (bolsa 6kg)", precio=2600.0, activo=True),
+        Articulo(nombre="Carbón (bolsa 3kg)", precio=2700.0, activo=True),
+        Articulo(nombre="Bolsa de astillas para encendido", precio=1200.0, activo=True),
+        Articulo(nombre="Pack leña quebracho colorado (10kg)", precio=4500.0, activo=True),
+    ]
 
-# Insertar el segundo registro
-cursor.execute("""
-    INSERT INTO articulo (nombre, precio, activo, imagen) 
-    VALUES ('Carbón (bolsa 3kg)', 2700.0, 1, 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSNjoF3OGTmnFRtlIS6OZzHnpvTO0DMijNOoA&s')
-""")
+    with Session(engine) as session:
+        # Evita duplicar registros si ya existen artículos en la tabla
+        existentes = session.exec(select(Articulo)).first()
+        if existentes:
+            print("ℹ️ La base de datos ya contiene registros. No se agregaron duplicados.")
+            return
 
-# Guardar los cambios y cerrar
-conn.commit()
-conn.close()
+        for art in articulos_semilla:
+            session.add(art)
 
-print("¡Los 2 registros fueron insertados con éxito!")
+        session.commit()
+        print("✅ Registros cargados con éxito en db_lenera_sqlmodel.db")
+
+if __name__ == "__main__":
+    poblar_base_datos()

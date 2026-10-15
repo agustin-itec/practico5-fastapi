@@ -3,12 +3,15 @@ from typing import Annotated
 from pydantic import BaseModel, Field
 from routers.articulos import articulos_routers
 from fastapi.middleware.cors import CORSMiddleware
-from database import Base, engine
+from database import SQLModel, engine
 from models.articulos_models import (
+    ArticuloBase,
     Articulo,
+    ArticuloCreate,
+    ArticuloPublic
 )
 
-Base.metadata.create_all(bind=engine)
+# SQLModel.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
